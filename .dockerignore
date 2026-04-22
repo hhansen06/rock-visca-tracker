@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual Environments
+venv/
+venv_*/
+.venv/
+
+# Secrets
+.env
+*.key
+*.pem
+*.crt
+
+# Modell-Dateien (groß, per Volume eingebunden)
+# Auskommentieren wenn Modelle ins Image eingebettet werden sollen
+# *.pt
+# *.onnx
+# *.rknn
+
+# Build-Artefakte
+build/
+dist/
+*.egg-info/
+
+# Logs
+logs/
+*.log
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Docs
+README*
+*.md

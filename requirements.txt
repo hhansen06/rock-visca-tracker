@@ -1,0 +1,28 @@
+# =============================================================================
+# rally_tracker — Python-Abhängigkeiten
+#
+# Hinweis: PyGObject (gi) und GStreamer-Bindings werden als System-Pakete
+# installiert (apt), nicht per pip — sie sind deshalb hier nicht aufgeführt.
+#
+# RKNN Lite2 (rknn-toolkit-lite2) ist proprietär und nicht auf PyPI verfügbar.
+# Es wird als Pre-built Wheel via scripts/extract_wheels.sh bereitgestellt.
+# =============================================================================
+
+# --- Kern --------------------------------------------------------------------
+pyserial>=3.5
+PyYAML>=6.0
+numpy>=1.24
+
+# --- Computer Vision ---------------------------------------------------------
+opencv-python-headless>=4.9.0
+
+# --- ML / Detektion (CPU-Fallback) -------------------------------------------
+# Nur beim CPU-Fallback benötigt (kein RKNN vorhanden).
+# ultralytics zieht torch/torchvision als Abhängigkeiten nach.
+ultralytics>=8.2.0
+
+# --- Web API -----------------------------------------------------------------
+flask>=3.0.0
+
+# --- MQTT --------------------------------------------------------------------
+paho-mqtt>=2.0

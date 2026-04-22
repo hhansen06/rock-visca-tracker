@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual Environments
+venv/
+venv_*/
+.venv/
+
+# Secrets
+.env
+
+# Build-Artefakte
+build/
+dist/
+*.egg-info/
+
+# Modelle (groß — per Volume oder LFS verwalten)
+*.rknn
+*.onnx
+*.pt
+
+# Logs
+logs/
+*.log
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store

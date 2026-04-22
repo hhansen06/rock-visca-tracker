@@ -1,0 +1,121 @@
+# =============================================================================
+# rally_tracker — Docker Compose (Production, RK3588)
+#
+# Verwendung:
+#   cp .env.example .env        # Konfiguration anpassen
+#   docker compose up -d        # Starten
+#   docker compose logs -f      # Logs beobachten
+#   docker compose down         # Stoppen
+#
+# Hardware-Voraussetzungen auf dem Host:
+#   - /dev/ttyUSB0              VISCA-Kamera (seriell)
+#   - /dev/video<N>             HDMI-RX V4L2-Gerät
+#   - /dev/dri/renderD128       Rockchip MPP (H.264 HW-Encoder)
+#   - /dev/mpp_service          Rockchip MPP Service Device
+#   - Rockchip GStreamer-Plugin  libgstrkmpp.so / libgstmpph264enc.so im BSP
+#
+# Gruppen:
+#   Der Container-User braucht Mitgliedschaft in den Gruppen, die den
+#   Devices auf dem Host entsprechen. Diese werden per group_add übergeben.
+#   GIDs mit: stat -c '%g' /dev/ttyUSB0  und  stat -c '%g' /dev/video0
+# =============================================================================
+
+services:
+
+  rally_tracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: rally_tracker:latest
+    container_name: rally_tracker
+
+    restart: unless-stopped
+
+    # -------------------------------------------------------------------------
+    # Umgebungsvariablen (alle aus .env)
+    # -------------------------------------------------------------------------
+    env_file:
+      - .env
+
+    # -------------------------------------------------------------------------
+    # Netzwerk: Host-Modus, damit UDP-Stream und GStreamer direkt arbeiten
+    # und kein Port-Mapping nötig ist (udpsink schreibt direkt ins Netz).
+    # Alternativ: bridge + ports, dann aber UDP-Routing prüfen.
+    # -------------------------------------------------------------------------
+    network_mode: host
+
+    # -------------------------------------------------------------------------
+    # Hardware-Devices
+    # -------------------------------------------------------------------------
+    devices:
+      # VISCA-Kamera (seriell) — Pfad ggf. in .env anpassen
+      - "${RT_VISCA_PORT:-/dev/ttyUSB0}:/dev/ttyUSB0"
+      # HDMI-RX V4L2-Quelle — Pfad wird per RT_CAPTURE_DEVICE gesetzt
+      - "${RT_CAPTURE_DEVICE:-/dev/video0}:/dev/video_capture"
+      # Rockchip MPP (Hardware H.264 Encoder)
+      - "/dev/dri/renderD128:/dev/dri/renderD128"
+      - "/dev/mpp_service:/dev/mpp_service"
+
+    # -------------------------------------------------------------------------
+    # Volumes
+    # -------------------------------------------------------------------------
+    volumes:
+      # Rockchip BSP GStreamer-Plugin einbinden (mpph264enc / rkmpp)
+      # Der Host-Pfad kann je nach BSP-Version variieren:
+      #   Armbian/Ubuntu:  /usr/lib/aarch64-linux-gnu/gstreamer-1.0/
+      #   Rockchip SDK:    /usr/lib/gstreamer-1.0/
+      - type: bind
+        source: "${RT_GST_PLUGIN_HOST_PATH:-/usr/lib/aarch64-linux-gnu/gstreamer-1.0}"
+        target: /opt/gst-plugins
+        read_only: true
+
+      # Modell-Verzeichnis (RKNN + PT-Dateien, extern verwaltet)
+      # Erlaubt Modell-Updates ohne Image-Rebuild.
+      - type: bind
+        source: "${RT_MODELS_PATH:-./models}"
+        target: /app/models
+        read_only: true
+
+      # Log-Verzeichnis (persistente Logs auf dem Host)
+      - type: bind
+        source: "${RT_LOG_PATH:-./logs}"
+        target: /app/logs
+
+    # -------------------------------------------------------------------------
+    # Gruppen-Zugriffsrechte (GIDs auf dem Host prüfen!)
+    # stat -c '%g' /dev/ttyUSB0   → typisch 20 (dialout)
+    # stat -c '%g' /dev/video0    → typisch 44 (video)
+    # stat -c '%g' /dev/dri/renderD128 → typisch 104 (render)
+    # -------------------------------------------------------------------------
+    group_add:
+      - "${RT_GID_DIALOUT:-20}"
+      - "${RT_GID_VIDEO:-44}"
+      - "${RT_GID_RENDER:-104}"
+
+    # -------------------------------------------------------------------------
+    # Ressourcen-Limits
+    # -------------------------------------------------------------------------
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+    # -------------------------------------------------------------------------
+    # Logging (systemd-journal oder json-file)
+    # -------------------------------------------------------------------------
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+    # -------------------------------------------------------------------------
+    # Healthcheck (REST API muss antworten)
+    # -------------------------------------------------------------------------
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8080/status')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3

@@ -1,0 +1,118 @@
+# -----------------------------------------------------------------------
+# rally_tracker configuration
+# -----------------------------------------------------------------------
+
+# -- Serial / VISCA -------------------------------------------------------
+visca:
+  port: /dev/ttyUSB0
+  baudrate: 9600
+
+# -- Video capture --------------------------------------------------------
+capture:
+  # Leave blank for automatic detection of the onboard HDMI-RX
+  device: ""
+  width: 1920
+  height: 1080
+
+# -- YOLOv8 detection -----------------------------------------------------
+detector:
+  # Erkennungsmodus:
+  #   vehicles → Fahrzeuge (car, motorcycle, bus, truck) — Standard für Rallye
+  #   faces    → Gesichter
+#  mode: vehicles
+  mode: faces
+
+  # Passendes Modell zum Modus:
+  #   vehicles → yolov8n.pt  (wird automatisch heruntergeladen)
+  #   faces    → yolov8n-face.pt  (wird automatisch heruntergeladen)
+#  model: yolov8n.pt
+  model: yolov8n-face-320.rknn
+
+  confidence: 0.45
+  iou: 0.45
+  # Anzahl aufeinanderfolgender Frames ohne Detektion bevor Ziel als verloren gilt
+  # Bei 82fps NPU: 60 Frames ≈ 730ms Toleranz bei kurzer Verdeckung
+  max_lost_frames: 60
+  # Inferenz-Gerät: "cpu" oder "0" für CUDA GPU
+  device: cpu
+
+# -- PTZ tracking ---------------------------------------------------------
+tracker:
+  # Quadratische Kennlinie: speed = sign(err) * err² * gain
+  # → sanfte Bewegung bei kleinen Fehlern, volle Speed erst bei großen Abweichungen
+  # Formel: speed = err² * gain → wird auf pan_speed_max geklippt.
+  # Beispiel: err=0.7 (Ziel am Bildrand), pan_gain=36 → speed=0.49*36≈18
+  pan_gain: 36.0
+  tilt_gain: 22.0
+  # Dead-zone: Anteil der halben Bildbreite/-höhe ohne Korrektur
+  dead_zone: 0.05
+  # Maximum VISCA speed values (1-24 pan, 1-20 tilt)
+  pan_speed_max: 18
+  tilt_speed_max: 12
+  # EMA-Glättung für Fehler (0.0=einfrieren, 1.0=kein Glätten)
+  # Niedrigerer Wert = mehr Glättung = sanftere aber trägere Bewegung
+  # Typisch: 0.3 (sehr sanft) – 0.7 (reaktiv). Standard: 0.5
+  ema_alpha: 0.5
+  # Adaptiver Gain: reduziert Überschwingen automatisch
+  #   gain_adapt_rate:   Reduktion pro Überschwing-Ereignis (0.1=10% weniger Gain)
+  #   gain_recover_rate: Erholung pro Frame ohne Überschwingen (0.003 = langsam)
+  #   gain_min_factor:   untere Grenze als Anteil des konfigurierten Gains (0.3 = 30%)
+  gain_adapt_rate: 0.15
+  gain_recover_rate: 0.003
+  gain_min_factor: 0.3
+  # Sekunden warten nach Zielverlust bevor Rückkehr gestartet wird
+  return_delay: 1.5
+  # Geschätzte Fahrzeit zur Startbox in Sekunden (für RETURNING → IDLE Timeout)
+  return_travel_time: 4.0
+  # VISCA preset number stored as "start box" (0-based, set with --save-home)
+  home_preset: 0
+  # Minimum time between VISCA commands (seconds)
+  cmd_interval: 0.05
+
+# -- UDP Transport Stream -------------------------------------------------
+stream:
+  enabled: true
+  host: 172.18.5.24
+  port: 4441
+  # H.264 encoding options
+  qp: 18               # Konstanter Quantisierungsparameter (18=sehr gut, 23=gut, 28=okay)
+                       # Niedrigerer Wert = bessere Qualität + höhere Bitrate
+                       # Typisch: ~3-5 Mbit/s bei 1080p Rallye-Video mit qp=23
+  preset: ultrafast    # FFmpeg-Preset: ultrafast/superfast/veryfast/faster/fast
+  fps: 50              # Stream-Framerate (HW-Encoder schafft 200fps+, 50fps ist kein Problem)
+  ttl: 64              # UDP TTL (wichtig bei Multicast/Routing)
+  # Audio (optional): ALSA-Device angeben um Mono-Audio in den Stream zu integrieren.
+  # Beispiele:
+  #   hw:5,0   → Avaya L100 USB
+  #   hw:3,0   → HDMI-In (rockchip_hdmiin)
+  #   default  → System-Default
+  # Auskommentieren oder leer lassen um Audio zu deaktivieren.
+  audio_device: "hw:5,0"
+  audio_bitrate: 128000   # AAC Bitrate in Bit/s (64000–256000)
+
+# -- REST API -------------------------------------------------------------
+api:
+  enabled: true
+  host: 0.0.0.0   # auf allen Interfaces lauschen
+  port: 8080
+
+# -- MQTT -----------------------------------------------------------------
+mqtt:
+  enabled: false
+  host: 127.0.0.1
+  port: 1883
+  # Leer lassen wenn kein TLS gewünscht
+  # tls_cafile: /etc/ssl/certs/ca-certificates.crt
+  username: ""
+  password: ""
+  # Client-ID (leer = automatisch generiert)
+  client_id: ""
+  # Topic-Prefix für alle Nachrichten (trailing slash wird automatisch ergänzt)
+  topic_prefix: rally_tracker
+  # QoS-Level (0, 1 oder 2)
+  qos: 1
+  # Status-Intervall in Sekunden (wie oft der Status publiziert wird, auch ohne Änderung)
+  status_interval: 5.0
+
+# -- Logging --------------------------------------------------------------
+log_level: DEBUG
