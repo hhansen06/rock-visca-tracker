@@ -11,7 +11,31 @@ This guide covers installation of the Rally Tracker system on RK3588-based hardw
 
 ## Installation
 
-### 1. Download DEB Package
+### 1. Install System Dependencies
+
+First, install required system packages:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  python3 python3-venv python3-pip \
+  python3-gi gir1.2-gstreamer-1.0 \
+  gstreamer1.0-tools \
+  gstreamer1.0-plugins-base \
+  gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-bad
+```
+
+**For RK3588 hardware acceleration**, you may need additional packages:
+- Rockchip MPP GStreamer plugins (check your system vendor documentation)
+- These are often pre-installed on vendor images (Armbian, Joshua Riek's Ubuntu, etc.)
+
+To verify hardware encoder is available:
+```bash
+gst-inspect-1.0 mpph264enc
+```
+
+### 2. Download DEB Package
 
 Download the latest release from GitHub:
 
@@ -21,17 +45,10 @@ VERSION="1.0.0"
 wget https://github.com/hhansen06/rock-visca-tracker/releases/download/v${VERSION}/rally-tracker_${VERSION}_arm64.deb
 ```
 
-### 2. Install Package
+### 3. Install Package
 
 ```bash
 sudo dpkg -i rally-tracker_${VERSION}_arm64.deb
-```
-
-If there are missing dependencies, install them:
-
-```bash
-sudo apt-get update
-sudo apt-get install -f
 ```
 
 The package will:
@@ -41,7 +58,7 @@ The package will:
 - Copy default config to `/etc/rally-tracker/config.yaml`
 - Install and enable systemd service `rally-tracker.service`
 
-### 3. Configure
+### 4. Configure
 
 Edit the configuration file:
 
@@ -77,7 +94,7 @@ api:
   port: 8080
 ```
 
-### 4. Start Service
+### 5. Start Service
 
 ```bash
 # Start service
