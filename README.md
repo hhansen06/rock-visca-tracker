@@ -171,6 +171,23 @@ Antwort:
 {"pan":120,"tilt":-40,"pan_speed":12,"tilt_speed":8}
 ```
 
+Relative (inkrementelle) Bewegung:
+
+```bash
+curl -s -X POST "$API/move/relative" \
+  -H "Content-Type: application/json" \
+  -d '{"delta_pan":40,"delta_tilt":-20,"pan_speed":10,"tilt_speed":8}'
+```
+
+Hinweis: `delta_pan`/`delta_tilt` sind Offsets zur aktuellen Position.
+Als Alias funktionieren auch `pan`/`tilt` im selben Endpoint.
+
+Beispielantwort:
+
+```json
+{"ok":true,"delta_pan":40,"delta_tilt":-20,"from_pan":100,"from_tilt":-10,"pan":140,"tilt":-30,"pan_speed":10,"tilt_speed":8}
+```
+
 ### 7.4 Sofort stoppen
 
 ```bash
@@ -221,7 +238,90 @@ Beispielantworten:
 {"zoom":"stop"}
 ```
 
-### 7.6 Home-Position speichern und anfahren
+### 7.6 White Balance / AE / Iris
+
+White Balance Auto:
+
+```bash
+curl -s -X POST "$API/wb/auto"
+```
+
+White Balance Table Manual:
+
+```bash
+curl -s -X POST "$API/wb/table/manual"
+```
+
+White Balance Table Direct (Index):
+
+```bash
+curl -s -X POST "$API/wb/table/direct" \
+  -H "Content-Type: application/json" \
+  -d '{"index":12}'
+```
+
+AE Auto / Manual:
+
+```bash
+curl -s -X POST "$API/ae/auto"
+curl -s -X POST "$API/ae/manual"
+```
+
+Iris Direct (`0..50`, typischerweise nur in AE Manual sinnvoll):
+
+```bash
+curl -s -X POST "$API/iris/direct" \
+  -H "Content-Type: application/json" \
+  -d '{"position":24}'
+```
+
+Weitere Bildparameter:
+
+```bash
+# Gain direct
+curl -s -X POST "$API/gain/direct" -H "Content-Type: application/json" -d '{"position":12}'
+
+# Backlight / Mirror / Flip
+curl -s -X POST "$API/backlight/on"
+curl -s -X POST "$API/backlight/off"
+curl -s -X POST "$API/mirror/on"
+curl -s -X POST "$API/mirror/off"
+curl -s -X POST "$API/flip/on"
+curl -s -X POST "$API/flip/off"
+
+# Gamma
+curl -s -X POST "$API/gamma/auto"
+curl -s -X POST "$API/gamma/manual"
+curl -s -X POST "$API/gamma/direct" -H "Content-Type: application/json" -d '{"table":4}'
+```
+
+Zoom/Focus Direct:
+
+```bash
+curl -s -X POST "$API/zoom/direct" -H "Content-Type: application/json" -d '{"position":1200}'
+curl -s -X POST "$API/zoomfocus/direct" -H "Content-Type: application/json" -d '{"zoom":1200,"focus":800}'
+
+curl -s -X POST "$API/focus/stop"
+curl -s -X POST "$API/focus/far" -H "Content-Type: application/json" -d '{"speed":4}'
+curl -s -X POST "$API/focus/near" -H "Content-Type: application/json" -d '{"speed":4}'
+curl -s -X POST "$API/focus/direct" -H "Content-Type: application/json" -d '{"position":800}'
+curl -s -X POST "$API/focus/auto"
+curl -s -X POST "$API/focus/manual"
+```
+
+Pan/Tilt Jog + Direct + PTZF:
+
+```bash
+curl -s -X POST "$API/pt/stop"
+curl -s -X POST "$API/pt/reset"
+curl -s -X POST "$API/pt/up" -H "Content-Type: application/json" -d '{"pan_speed":3,"tilt_speed":5}'
+curl -s -X POST "$API/pt/down-right" -H "Content-Type: application/json" -d '{"pan_speed":4,"tilt_speed":4}'
+
+curl -s -X POST "$API/pt/direct" -H "Content-Type: application/json" -d '{"pan":120,"tilt":-40,"pan_speed":10,"tilt_speed":8}'
+curl -s -X POST "$API/ptzf/direct" -H "Content-Type: application/json" -d '{"pan":120,"tilt":-40,"zoom":1200,"focus":800}'
+```
+
+### 7.7 Home-Position speichern und anfahren
 
 Aktuelle Kamera-Position als Home speichern:
 
@@ -253,7 +353,7 @@ Wenn noch nichts gespeichert wurde:
 {"recalled":false,"error":"no preset saved"}
 ```
 
-### 7.7 Praktische `curl`-One-Liner
+### 7.8 Praktische `curl`-One-Liner
 
 Status hübsch formatiert (mit `jq`):
 
@@ -329,15 +429,33 @@ Publish (vom Tracker):
 - `<prefix>/status` (retained): Tracker-State + Tracking-Flag + Target
 - `<prefix>/detection`: Detektions-Events
 - `<prefix>/camera/position`: aktuelle Pan/Tilt-Position
+- `<prefix>/system` (retained): SoC-Temperatur + Lüfterdrehzahl
 
 Subscribe (Kommandos an Tracker):
 
 - `<prefix>/cmd/tracking` → Payload `enable` oder `disable`
 - `<prefix>/cmd/move` → JSON `{"pan":...,"tilt":...,"pan_speed":...,"tilt_speed":...}`
+- `<prefix>/cmd/move/relative` → JSON `{"delta_pan":...,"delta_tilt":...,"pan_speed":...,"tilt_speed":...}`
 - `<prefix>/cmd/stop` → beliebiger Payload
 - `<prefix>/cmd/zoom/in` → optional JSON `{"speed":0..7}` oder Payload `0..7`
 - `<prefix>/cmd/zoom/out` → optional JSON `{"speed":0..7}` oder Payload `0..7`
 - `<prefix>/cmd/zoom/stop` → beliebiger Payload
+- `<prefix>/cmd/wb/auto` → beliebiger Payload
+- `<prefix>/cmd/wb/table/manual` → beliebiger Payload
+- `<prefix>/cmd/wb/table/direct` → JSON `{"index":...}` oder Payload int
+- `<prefix>/cmd/ae/auto` → beliebiger Payload
+- `<prefix>/cmd/ae/manual` → beliebiger Payload
+- `<prefix>/cmd/iris/direct` → JSON `{"position":0..50}` oder Payload int
+- `<prefix>/cmd/gain/direct` → JSON `{"position":...}` oder Payload int
+- `<prefix>/cmd/backlight/on` / `<prefix>/cmd/backlight/off`
+- `<prefix>/cmd/mirror/on` / `<prefix>/cmd/mirror/off`
+- `<prefix>/cmd/flip/on` / `<prefix>/cmd/flip/off`
+- `<prefix>/cmd/gamma/auto` / `<prefix>/cmd/gamma/manual` / `<prefix>/cmd/gamma/direct`
+- `<prefix>/cmd/zoom/direct` → JSON `{"position":...}` oder Payload int
+- `<prefix>/cmd/zoomfocus/direct` → JSON `{"zoom":...,"focus":...}`
+- `<prefix>/cmd/focus/stop|far|near|direct|auto|manual`
+- `<prefix>/cmd/pt/stop|reset|up|down|left|right|up-left|up-right|down-left|down-right|direct`
+- `<prefix>/cmd/ptzf/direct` → JSON `{"pan":...,"tilt":...,"zoom":...,"focus":...}`
 - `<prefix>/cmd/preset/save` → beliebiger Payload
 - `<prefix>/cmd/preset/recall` → beliebiger Payload
 
@@ -367,6 +485,13 @@ mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/move" \
   -m '{"pan":120,"tilt":-40,"pan_speed":12,"tilt_speed":8}'
 ```
 
+Relative (inkrementelle) Bewegung:
+
+```bash
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/move/relative" \
+  -m '{"delta_pan":40,"delta_tilt":-20,"pan_speed":10,"tilt_speed":8}'
+```
+
 Stop:
 
 ```bash
@@ -381,6 +506,34 @@ mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/zoom/out" -m "4"
 mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/zoom/stop" -m "1"
 ```
 
+White Balance / AE / Iris:
+
+```bash
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/wb/auto" -m "1"
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/wb/table/manual" -m "1"
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/wb/table/direct" -m '{"index":12}'
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/ae/auto" -m "1"
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/ae/manual" -m "1"
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/iris/direct" -m '{"position":24}'
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/gain/direct" -m '{"position":12}'
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/backlight/on" -m "1"
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/mirror/off" -m "1"
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/flip/on" -m "1"
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/gamma/direct" -m '{"table":4}'
+```
+
+Zoom/Focus/PT/PTZF:
+
+```bash
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/zoom/direct" -m '{"position":1200}'
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/zoomfocus/direct" -m '{"zoom":1200,"focus":800}'
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/focus/far" -m '{"speed":4}'
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/focus/manual" -m "1"
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/pt/up-left" -m '{"pan_speed":4,"tilt_speed":4}'
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/pt/direct" -m '{"pan":120,"tilt":-40,"pan_speed":10,"tilt_speed":8}'
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/ptzf/direct" -m '{"pan":120,"tilt":-40,"zoom":1200,"focus":800}'
+```
+
 Preset/Home:
 
 ```bash
@@ -393,3 +546,12 @@ mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/preset/recall" -m "1"
 ```bash
 mosquitto_sub -h "$BROKER" -p "$PORT" -t "$PREFIX/#" -v
 ```
+
+Beispiel für System-Topic:
+
+```json
+{"soc_temp_c":62.4,"fan_rpm":3180,"ts":1713896508.12}
+```
+
+Wenn ein Wert auf der Hardware nicht verfügbar ist, wird `null` gesendet
+(z. B. `{"soc_temp_c":61.9,"fan_rpm":null,...}`).
