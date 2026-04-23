@@ -26,13 +26,101 @@ sudo apt-get install -y \
   gstreamer1.0-plugins-bad
 ```
 
-**For RK3588 hardware acceleration**, you may need additional packages:
-- Rockchip MPP GStreamer plugins (check your system vendor documentation)
-- These are often pre-installed on vendor images (Armbian, Joshua Riek's Ubuntu, etc.)
+#### RK3588 Hardware Acceleration (Optional but Recommended)
 
-To verify hardware encoder is available:
+For hardware-accelerated H.264 encoding, you need Rockchip MPP GStreamer plugins.
+
+**Check if already installed:**
 ```bash
 gst-inspect-1.0 mpph264enc
+```
+
+If the command shows plugin info, you're good to go. If not, install as follows:
+
+**Option A: Install pre-built libraries (Fastest)**
+
+The easiest way is to copy the pre-built libraries from a working RK3588 system:
+
+```bash
+# Download pre-built MPP libraries (if available from your vendor)
+# Or copy from another working Rock 5B system:
+
+# On source system (with MPP working):
+tar -czf mpp-libs.tar.gz \
+  /usr/lib/aarch64-linux-gnu/librockchip_mpp.so* \
+  /usr/lib/aarch64-linux-gnu/gstreamer-1.0/libgstmpp*.so
+
+# Copy to target system and extract:
+sudo tar -xzf mpp-libs.tar.gz -C /
+sudo ldconfig
+
+# Verify
+gst-inspect-1.0 mpph264enc
+```
+
+**Option B: Build from source**
+
+Build MPP and GStreamer plugins from source:
+
+```bash
+# Install build dependencies
+sudo apt-get update
+sudo apt-get install -y \
+  git cmake build-essential meson ninja-build \
+  libdrm-dev \
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  pkg-config
+
+# 1. Build and install Rockchip MPP library
+cd /tmp
+git clone -b develop https://github.com/rockchip-linux/mpp.git
+cd mpp
+cmake -DRKPLATFORM=ON -DHAVE_DRM=ON .
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+
+# 2. Build and install GStreamer Rockchip plugins
+cd /tmp
+git clone https://github.com/JeffyCN/gstreamer-rockchip.git
+cd gstreamer-rockchip
+meson setup build --prefix=/usr --libdir=lib/aarch64-linux-gnu
+ninja -C build
+sudo ninja -C build install
+sudo ldconfig
+
+# Verify installation
+gst-inspect-1.0 mpph264enc
+gst-inspect-1.0 mppvideodec
+```
+
+**Option C: Use software encoding (Fallback)**
+
+If hardware encoding is not available, the system will automatically fall back to software encoding. The tracker will still work, but:
+- Higher CPU usage (30-50% vs 5-10% with MPP)
+- Potentially lower framerate for streaming
+- Detection/tracking performance unaffected (runs on NPU)
+
+**Vendor-specific notes:**
+
+- **Armbian**: MPP support varies by image. Use `armbian-config` → System → Install → Headers to ensure kernel headers match your running kernel, then build from source.
+- **Joshua Riek's Ubuntu**: Usually includes MPP pre-installed. Check with `gst-inspect-1.0 mpph264enc`.
+- **Radxa official images**: Often include MPP in `/usr/lib`. Check with `ldconfig -p | grep mpp`.
+
+**Troubleshooting:**
+
+If `gst-inspect-1.0 mpph264enc` fails after installation:
+```bash
+# Check if libraries are found
+ldconfig -p | grep mpp
+
+# Check GStreamer plugin path
+export GST_PLUGIN_PATH=/usr/lib/aarch64-linux-gnu/gstreamer-1.0
+gst-inspect-1.0 mpph264enc
+
+# Rebuild plugin cache
+sudo rm -rf ~/.cache/gstreamer-1.0
+gst-inspect-1.0 --version
 ```
 
 ### 2. Download DEB Package
