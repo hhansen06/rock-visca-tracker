@@ -1,0 +1,14 @@
+Package: rally-tracker
+Version: VERSION_PLACEHOLDER
+Section: misc
+Priority: optional
+Architecture: arm64
+Maintainer: hhansen06 <hhansen06@users.noreply.github.com>
+Depends: python3 (>= 3.11), python3-venv, python3-gi, gstreamer1.0-tools, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-rockchip1, gir1.2-gstreamer-1.0, systemd
+Description: VISCA Camera Tracker with YOLOv8 Detection
+ Automated camera tracking system for RK3588 with:
+  - YOLOv8 object detection (vehicles/faces) via RKNN NPU
+  - VISCA camera control (PTZ, exposure, white balance)
+  - REST API and MQTT interface
+  - Adaptive tracking with persistent gain
+  - Hardware-accelerated H.264 streaming

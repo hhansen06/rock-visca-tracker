@@ -18,6 +18,8 @@ import time
 import math
 import logging
 import threading
+import json
+from pathlib import Path
 from enum import Enum, auto
 from typing import Optional
 
@@ -59,6 +61,16 @@ class PTZTracker:
         # Laufende Gain-Faktoren (starten bei 1.0 = voller Gain)
         self._pan_gain_factor:  float = 1.0
         self._tilt_gain_factor: float = 1.0
+
+        # Persistenz für adaptive Gain-Faktoren
+        self._persist_adaptive_gain: bool = bool(config.get("persist_adaptive_gain", True))
+        self._gain_state_file: str = str(config.get("gain_state_file", "/tmp/rally_tracker_gain_state.json"))
+        self._gain_save_interval: float = float(config.get("gain_save_interval", 0.5))
+        self._last_gain_save_time: float = 0.0
+        self._last_saved_pan_gain_factor: Optional[float] = None
+        self._last_saved_tilt_gain_factor: Optional[float] = None
+
+        self._load_gain_state()
 
         # Letztes Fehler-Vorzeichen für Überschwing-Erkennung
         self._last_sign_x: float = 0.0
@@ -183,15 +195,68 @@ class PTZTracker:
     # ------------------------------------------------------------------
 
     def _reset_smooth(self):
-        """EMA-Zustand und adaptiven Gain zurücksetzen (bei Zustandswechsel)."""
+        """EMA-Zustand und zuletzt gesendete Geschwindigkeiten zurücksetzen."""
         self._smooth_err_x = 0.0
         self._smooth_err_y = 0.0
         self._last_pan_speed  = 0
         self._last_tilt_speed = 0
-        self._pan_gain_factor  = 1.0
-        self._tilt_gain_factor = 1.0
         self._last_sign_x = 0.0
         self._last_sign_y = 0.0
+
+    def _load_gain_state(self):
+        if not self._persist_adaptive_gain:
+            return
+        try:
+            p = Path(self._gain_state_file)
+            if not p.exists():
+                return
+            data = json.loads(p.read_text(encoding="utf-8"))
+            pan = float(data.get("pan_gain_factor", 1.0))
+            tilt = float(data.get("tilt_gain_factor", 1.0))
+            self._pan_gain_factor = max(self._gain_min_factor, min(1.0, pan))
+            self._tilt_gain_factor = max(self._gain_min_factor, min(1.0, tilt))
+            self._last_saved_pan_gain_factor = self._pan_gain_factor
+            self._last_saved_tilt_gain_factor = self._tilt_gain_factor
+            logger.info(
+                f"Adaptive Gain geladen: pan={self._pan_gain_factor:.3f} "
+                f"tilt={self._tilt_gain_factor:.3f}"
+            )
+        except Exception as exc:
+            logger.warning(f"Adaptive Gain konnte nicht geladen werden: {exc}")
+
+    def _save_gain_state(self, force: bool = False):
+        if not self._persist_adaptive_gain:
+            return
+
+        now = time.monotonic()
+        if not force and (now - self._last_gain_save_time) < self._gain_save_interval:
+            return
+
+        pan = round(float(self._pan_gain_factor), 6)
+        tilt = round(float(self._tilt_gain_factor), 6)
+        if (not force
+                and self._last_saved_pan_gain_factor is not None
+                and self._last_saved_tilt_gain_factor is not None
+                and abs(pan - self._last_saved_pan_gain_factor) < 1e-6
+                and abs(tilt - self._last_saved_tilt_gain_factor) < 1e-6):
+            return
+
+        try:
+            p = Path(self._gain_state_file)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            tmp = p.with_suffix(p.suffix + ".tmp")
+            payload = {
+                "pan_gain_factor": pan,
+                "tilt_gain_factor": tilt,
+                "updated_unix": time.time(),
+            }
+            tmp.write_text(json.dumps(payload), encoding="utf-8")
+            tmp.replace(p)
+            self._last_gain_save_time = now
+            self._last_saved_pan_gain_factor = pan
+            self._last_saved_tilt_gain_factor = tilt
+        except Exception as exc:
+            logger.warning(f"Adaptive Gain konnte nicht gespeichert werden: {exc}")
 
     def _track(self, vehicle: TrackedVehicle, now: float):
         """
@@ -244,6 +309,9 @@ class PTZTracker:
         sign_y = math.copysign(1.0, err_y) if err_y != 0.0 else 0.0
 
         # Überschwingen erkannt wenn Vorzeichen wechselt (und vorher bekannt)
+        old_pan_factor = self._pan_gain_factor
+        old_tilt_factor = self._tilt_gain_factor
+
         if self._last_sign_x != 0.0 and sign_x != 0.0 and sign_x != self._last_sign_x:
             self._pan_gain_factor = max(
                 self._gain_min_factor,
@@ -267,6 +335,10 @@ class PTZTracker:
             self._last_sign_x = sign_x
         if sign_y != 0.0:
             self._last_sign_y = sign_y
+
+        if (abs(self._pan_gain_factor - old_pan_factor) > 1e-9
+                or abs(self._tilt_gain_factor - old_tilt_factor) > 1e-9):
+            self._save_gain_state()
         # -----------------------------------------------------------------
 
         # Quadratische Kennlinie mit adaptivem Gain

@@ -1,0 +1,79 @@
+#!/bin/bash
+# =============================================================================
+# debian/postinst — Post-installation script for rally-tracker
+# =============================================================================
+set -e
+
+INSTALL_DIR="/opt/rally_tracker"
+VENV_DIR="$INSTALL_DIR/venv"
+CONFIG_DIR="/etc/rally-tracker"
+CONFIG_FILE="$CONFIG_DIR/config.yaml"
+
+case "$1" in
+    configure)
+        echo "Installing rally-tracker..."
+
+        # Create config directory
+        mkdir -p "$CONFIG_DIR"
+
+        # Copy default config if not exists
+        if [ ! -f "$CONFIG_FILE" ]; then
+            cp "$INSTALL_DIR/config.yaml" "$CONFIG_FILE"
+            chmod 644 "$CONFIG_FILE"
+            echo "Created default config: $CONFIG_FILE"
+        else
+            echo "Existing config preserved: $CONFIG_FILE"
+        fi
+
+        # Create venv
+        echo "Creating Python virtual environment..."
+        python3 -m venv "$VENV_DIR"
+
+        # Upgrade pip
+        "$VENV_DIR/bin/pip" install --upgrade pip wheel
+
+        # Install dependencies
+        echo "Installing Python dependencies..."
+        "$VENV_DIR/bin/pip" install -r "$INSTALL_DIR/requirements.txt"
+
+        # Install RKNN wheels if present
+        if ls "$INSTALL_DIR/wheels"/*.whl >/dev/null 2>&1; then
+            echo "Installing RKNN Toolkit Lite2..."
+            "$VENV_DIR/bin/pip" install "$INSTALL_DIR/wheels"/*.whl
+        else
+            echo "No RKNN wheels found — CPU fallback will be used"
+        fi
+
+        # Set permissions
+        chown -R root:root "$INSTALL_DIR"
+        chmod -R 755 "$INSTALL_DIR"
+
+        # Install and enable systemd service
+        echo "Installing systemd service..."
+        cp "$INSTALL_DIR/../systemd/rally-tracker.service" /etc/systemd/system/
+        systemctl daemon-reload
+        systemctl enable rally-tracker.service
+
+        echo ""
+        echo "Installation complete!"
+        echo ""
+        echo "Next steps:"
+        echo "  1. Edit configuration: $CONFIG_FILE"
+        echo "  2. Start service: systemctl start rally-tracker"
+        echo "  3. Check status: systemctl status rally-tracker"
+        echo "  4. View logs: journalctl -u rally-tracker -f"
+        echo ""
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument: $1" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

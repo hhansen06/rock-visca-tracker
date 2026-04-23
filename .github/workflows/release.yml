@@ -1,0 +1,112 @@
+name: Build and Release DEB Package
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v1.0.0, v1.2.3, etc.
+
+permissions:
+  contents: write  # Required for creating releases
+
+jobs:
+  build-deb:
+    name: Build DEB Package
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for git describe
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev fakeroot zip
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Create virtual environment for RKNN extraction
+        run: |
+          python3 -m venv venv
+          venv/bin/pip install --upgrade pip wheel
+
+      - name: Install RKNN Toolkit Lite2 (if available)
+        run: |
+          # This step attempts to install RKNN from a pre-built wheel
+          # If you have a wheel in the repo or downloadable URL, add it here
+          # For now, we'll skip and let the package use CPU fallback
+          echo "RKNN Toolkit Lite2 requires manual installation or pre-built wheel"
+          echo "Package will be built with CPU fallback"
+        continue-on-error: true
+
+      - name: Build DEB package
+        run: |
+          chmod +x scripts/build-deb.sh
+          ./scripts/build-deb.sh ${{ steps.get_version.outputs.VERSION }}
+
+      - name: Verify DEB package
+        run: |
+          DEB_FILE="build/deb/rally-tracker_${{ steps.get_version.outputs.VERSION }}_arm64.deb"
+          if [ -f "$DEB_FILE" ]; then
+            echo "DEB package built successfully:"
+            ls -lh "$DEB_FILE"
+            dpkg-deb --info "$DEB_FILE"
+            echo ""
+            echo "Package contents:"
+            dpkg-deb --contents "$DEB_FILE"
+          else
+            echo "ERROR: DEB package not found"
+            exit 1
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/deb/rally-tracker_${{ steps.get_version.outputs.VERSION }}_arm64.deb
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Rally Tracker v${{ steps.get_version.outputs.VERSION }}
+            
+            ### Installation
+            
+            Download the DEB package and install on your RK3588 system:
+            
+            ```bash
+            wget https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.VERSION }}/rally-tracker_${{ steps.get_version.outputs.VERSION }}_arm64.deb
+            sudo dpkg -i rally-tracker_${{ steps.get_version.outputs.VERSION }}_arm64.deb
+            sudo apt-get install -f  # Install any missing dependencies
+            ```
+            
+            ### Quick Start
+            
+            ```bash
+            # Edit configuration
+            sudo nano /etc/rally-tracker/config.yaml
+            
+            # Start service
+            sudo systemctl start rally-tracker
+            
+            # Check status
+            sudo systemctl status rally-tracker
+            
+            # View logs
+            journalctl -u rally-tracker -f
+            ```
+            
+            See [INSTALL.md](https://github.com/${{ github.repository }}/blob/main/INSTALL.md) for full documentation.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

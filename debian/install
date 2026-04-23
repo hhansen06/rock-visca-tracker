@@ -1,0 +1,7 @@
+*.py /opt/rally_tracker/
+*.yaml /opt/rally_tracker/
+*.rknn /opt/rally_tracker/
+*.pt /opt/rally_tracker/
+*.onnx /opt/rally_tracker/
+requirements.txt /opt/rally_tracker/
+build/*.whl /opt/rally_tracker/wheels/

@@ -1,0 +1,31 @@
+[Unit]
+Description=Rally Tracker - VISCA Camera Tracking System
+Documentation=https://github.com/hhansen06/rock-visca-tracker
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/rally_tracker
+ExecStart=/opt/rally_tracker/venv/bin/python /opt/rally_tracker/main.py --config /etc/rally-tracker/config.yaml
+Restart=on-failure
+RestartSec=10s
+
+# Environment
+Environment="PYTHONUNBUFFERED=1"
+Environment="GST_PLUGIN_PATH=/usr/lib/aarch64-linux-gnu/gstreamer-1.0"
+
+# Security
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/tmp /var/log
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rally-tracker
+
+[Install]
+WantedBy=multi-user.target

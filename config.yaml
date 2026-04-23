@@ -19,14 +19,14 @@ detector:
   # Erkennungsmodus:
   #   vehicles → Fahrzeuge (car, motorcycle, bus, truck) — Standard für Rallye
   #   faces    → Gesichter
-#  mode: vehicles
-  mode: faces
+  mode: vehicles
+#  mode: faces
 
   # Passendes Modell zum Modus:
   #   vehicles → yolov8n.pt  (wird automatisch heruntergeladen)
   #   faces    → yolov8n-face.pt  (wird automatisch heruntergeladen)
-#  model: yolov8n.pt
-  model: yolov8n-face-320.rknn
+  model: yolov8n-320.rknn
+#  model: yolov8n-face-320.rknn
 
   confidence: 0.45
   iou: 0.45
@@ -60,6 +60,10 @@ tracker:
   gain_adapt_rate: 0.15
   gain_recover_rate: 0.003
   gain_min_factor: 0.3
+  # Adaptive Gain optional persistent speichern (auch über Neustarts)
+  persist_adaptive_gain: true
+  gain_state_file: /tmp/rally_tracker_gain_state.json
+  gain_save_interval: 0.5
   # Sekunden warten nach Zielverlust bevor Rückkehr gestartet wird
   return_delay: 1.5
   # Geschätzte Fahrzeit zur Startbox in Sekunden (für RETURNING → IDLE Timeout)
@@ -98,8 +102,8 @@ api:
 
 # -- MQTT -----------------------------------------------------------------
 mqtt:
-  enabled: false
-  host: 127.0.0.1
+  enabled: true
+  host: 172.18.5.24
   port: 1883
   # Leer lassen wenn kein TLS gewünscht
   # tls_cafile: /etc/ssl/certs/ca-certificates.crt

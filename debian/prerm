@@ -1,0 +1,31 @@
+#!/bin/bash
+# =============================================================================
+# debian/prerm — Pre-removal script for rally-tracker
+# =============================================================================
+set -e
+
+case "$1" in
+    remove|upgrade|deconfigure)
+        if systemctl is-active --quiet rally-tracker.service; then
+            echo "Stopping rally-tracker service..."
+            systemctl stop rally-tracker.service
+        fi
+
+        if systemctl is-enabled --quiet rally-tracker.service; then
+            echo "Disabling rally-tracker service..."
+            systemctl disable rally-tracker.service
+        fi
+        ;;
+
+    failed-upgrade)
+        ;;
+
+    *)
+        echo "prerm called with unknown argument: $1" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

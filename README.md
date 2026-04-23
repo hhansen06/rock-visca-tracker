@@ -77,6 +77,9 @@ Optionen:
 | `tracker.pan_gain` | P-Verstärkung Pan | `12.0` |
 | `tracker.tilt_gain` | P-Verstärkung Tilt | `8.0` |
 | `tracker.dead_zone` | Totzone (% Bildhälfte) | `0.05` |
+| `tracker.persist_adaptive_gain` | Adaptive Gain-Faktoren über State-Wechsel/Neustarts behalten | `true` |
+| `tracker.gain_state_file` | Datei für gespeicherte Gain-Faktoren | `/tmp/rally_tracker_gain_state.json` |
+| `tracker.gain_save_interval` | Min. Intervall fürs Speichern (s) | `0.5` |
 | `tracker.return_delay` | Wartezeit nach Verlust (s) | `1.5` |
 | `tracker.home_preset` | VISCA-Preset-Index (0-basiert) | `0` |
 

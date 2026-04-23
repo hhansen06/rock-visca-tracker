@@ -1,0 +1,51 @@
+#!/bin/bash
+# =============================================================================
+# debian/postrm — Post-removal script for rally-tracker
+# =============================================================================
+set -e
+
+INSTALL_DIR="/opt/rally_tracker"
+CONFIG_DIR="/etc/rally-tracker"
+
+case "$1" in
+    purge)
+        echo "Purging rally-tracker..."
+
+        # Remove systemd service
+        if [ -f /etc/systemd/system/rally-tracker.service ]; then
+            rm -f /etc/systemd/system/rally-tracker.service
+            systemctl daemon-reload
+        fi
+
+        # Remove config directory (only on purge, not remove)
+        if [ -d "$CONFIG_DIR" ]; then
+            echo "Removing configuration: $CONFIG_DIR"
+            rm -rf "$CONFIG_DIR"
+        fi
+
+        # Remove installation directory
+        if [ -d "$INSTALL_DIR" ]; then
+            echo "Removing installation: $INSTALL_DIR"
+            rm -rf "$INSTALL_DIR"
+        fi
+
+        echo "Purge complete."
+        ;;
+
+    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        # Remove systemd service but keep config
+        if [ -f /etc/systemd/system/rally-tracker.service ]; then
+            rm -f /etc/systemd/system/rally-tracker.service
+            systemctl daemon-reload
+        fi
+        ;;
+
+    *)
+        echo "postrm called with unknown argument: $1" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0
