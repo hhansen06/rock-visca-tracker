@@ -3,8 +3,8 @@ Video capture via GStreamer.
 
 GStreamer ist alleiniger V4L2-Reader und verteilt die Frames per tee:
 
-  v4l2src → tee ┬→ queue → videoconvert → x264enc → mpegtsmux → udpsink  (Stream)
-                └→ queue → appsink                                         (Tracking)
+  v4l2src(BGR) → tee ┬→ queue → videoconvert(I420) → mpph264enc → udpsink   (Stream)
+                    └→ queue → appsink                                       (Tracking)
 
 Vorteil:
 - Stream läuft mit nativer V4L2-Framerate (50fps), unabhängig vom Tracking
@@ -161,7 +161,8 @@ class VideoCapture:
                 # Video-Branch → mpegtsmux
                 video = (
                     f"t. ! queue name=stream_q max-size-buffers=2 leaky=downstream ! "
-                    f"videorate drop-only=true ! video/x-raw,framerate={fps}/1 ! "
+                    f"videorate drop-only=true ! "
+                    f"videoconvert ! video/x-raw,format=I420,framerate={fps}/1 ! "
                     f"mpph264enc qp={qp} keyint={keyint} ! "
                     f"h264parse config-interval=-1 ! "
                     f"mux. "
@@ -184,7 +185,8 @@ class VideoCapture:
                 # Kein Audio: wie bisher
                 stream = (
                     f"t. ! queue name=stream_q max-size-buffers=2 leaky=downstream ! "
-                    f"videorate drop-only=true ! video/x-raw,framerate={fps}/1 ! "
+                    f"videorate drop-only=true ! "
+                    f"videoconvert ! video/x-raw,format=I420,framerate={fps}/1 ! "
                     f"mpph264enc qp={qp} keyint={keyint} ! "
                     f"h264parse config-interval=-1 ! "
                     f"mpegtsmux alignment=7 ! "

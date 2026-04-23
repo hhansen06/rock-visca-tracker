@@ -72,10 +72,10 @@ tracker:
 # -- UDP Transport Stream -------------------------------------------------
 stream:
   enabled: true
-  host: 127.0.0.1
+  host: 172.18.5.24
   port: 4441
   # H.264 encoding options
-  qp: 23               # Konstanter Quantisierungsparameter (18=sehr gut, 23=gut, 28=okay)
+  qp: 30               # Konstanter Quantisierungsparameter (18=sehr gut, 23=gut, 28=okay)
                        # Niedrigerer Wert = bessere Qualität + höhere Bitrate
                        # Typisch: ~3-5 Mbit/s bei 1080p Rallye-Video mit qp=23
   preset: ultrafast    # FFmpeg-Preset: ultrafast/superfast/veryfast/faster/fast

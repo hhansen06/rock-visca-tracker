@@ -82,7 +82,196 @@ Optionen:
 
 ---
 
-## 7. Systemd-Dienst (optional, Autostart)
+## 7. REST API (mit `curl` steuern)
+
+Die API läuft standardmäßig auf `0.0.0.0:8080` (siehe `config.yaml` → `api`).
+
+```yaml
+api:
+  enabled: true
+  host: 0.0.0.0
+  port: 8080
+```
+
+Für `curl` kannst du lokal z. B. so arbeiten:
+
+```bash
+API="http://127.0.0.1:8080"
+```
+
+Von einem anderen Rechner im LAN:
+
+```bash
+API="http://<IP-DES-TRACKERS>:8080"
+```
+
+### 7.1 Status lesen
+
+```bash
+curl -s "$API/status"
+```
+
+Beispielantwort:
+
+```json
+{"state":"IDLE","tracking_enabled":true,"target":null}
+```
+
+### 7.2 Tracking ein-/ausschalten
+
+Tracking einschalten:
+
+```bash
+curl -s -X POST "$API/tracking/enable"
+```
+
+Antwort:
+
+```json
+{"tracking_enabled":true}
+```
+
+Tracking ausschalten (stoppt Kamera + LED aus):
+
+```bash
+curl -s -X POST "$API/tracking/disable"
+```
+
+Antwort:
+
+```json
+{"tracking_enabled":false}
+```
+
+### 7.3 Kamera bewegen (`/move`)
+
+Endpoint:
+
+- `POST /move`
+- JSON-Body: `pan`, `tilt`, optional `pan_speed`, `tilt_speed`
+
+Limits (werden serverseitig geklemmt):
+
+- `pan`: `-880 .. 880`
+- `tilt`: `-300 .. 300`
+- `pan_speed`: `1 .. 24`
+- `tilt_speed`: `1 .. 20`
+
+Beispiel:
+
+```bash
+curl -s -X POST "$API/move" \
+  -H "Content-Type: application/json" \
+  -d '{"pan":120,"tilt":-40,"pan_speed":12,"tilt_speed":8}'
+```
+
+Antwort:
+
+```json
+{"pan":120,"tilt":-40,"pan_speed":12,"tilt_speed":8}
+```
+
+### 7.4 Sofort stoppen
+
+```bash
+curl -s -X POST "$API/stop"
+```
+
+Antwort:
+
+```json
+{"ok":true}
+```
+
+### 7.5 Zoom steuern
+
+Zoom-In starten (Standard `speed=3`):
+
+```bash
+curl -s -X POST "$API/zoom/in"
+```
+
+Zoom-In mit expliziter Geschwindigkeit (`0..7`):
+
+```bash
+curl -s -X POST "$API/zoom/in" \
+  -H "Content-Type: application/json" \
+  -d '{"speed":5}'
+```
+
+Zoom-Out starten:
+
+```bash
+curl -s -X POST "$API/zoom/out" \
+  -H "Content-Type: application/json" \
+  -d '{"speed":4}'
+```
+
+Zoom stoppen:
+
+```bash
+curl -s -X POST "$API/zoom/stop"
+```
+
+Beispielantworten:
+
+```json
+{"zoom":"in","speed":5}
+{"zoom":"out","speed":4}
+{"zoom":"stop"}
+```
+
+### 7.6 Home-Position speichern und anfahren
+
+Aktuelle Kamera-Position als Home speichern:
+
+```bash
+curl -s -X POST "$API/preset/save"
+```
+
+Erfolgsantwort:
+
+```json
+{"saved":true,"pan":34,"tilt":-12}
+```
+
+Home-Position anfahren:
+
+```bash
+curl -s -X POST "$API/preset/recall"
+```
+
+Erfolgsantwort:
+
+```json
+{"recalled":true,"pan":34,"tilt":-12}
+```
+
+Wenn noch nichts gespeichert wurde:
+
+```json
+{"recalled":false,"error":"no preset saved"}
+```
+
+### 7.7 Praktische `curl`-One-Liner
+
+Status hübsch formatiert (mit `jq`):
+
+```bash
+curl -s "$API/status" | jq
+```
+
+Tracking aus, Position setzen, Tracking wieder an:
+
+```bash
+curl -s -X POST "$API/tracking/disable" && \
+curl -s -X POST "$API/move" -H "Content-Type: application/json" -d '{"pan":0,"tilt":0}' && \
+curl -s -X POST "$API/tracking/enable"
+```
+
+---
+
+## 8. Systemd-Dienst (optional, Autostart)
 
 ```ini
 # /etc/systemd/system/rally-tracker.service
@@ -106,10 +295,101 @@ sudo systemctl enable --now rally-tracker
 
 ---
 
-## Ablauf im Betrieb
+## 9. Ablauf im Betrieb
 
 ```
 IDLE  ──► (Fahrzeug erkannt) ──► TRACKING  ──► (Fahrzeug weg) ──► RETURNING ──► IDLE
                                      ▲                                 │
                                      └─── (neues Fahrzeug während Rückkehr) ──────┘
+```
+
+---
+
+## 10. MQTT-Steuerung (komplette Software)
+
+MQTT ist in `config.yaml` standardmäßig deaktiviert und kann so aktiviert werden:
+
+```yaml
+mqtt:
+  enabled: true
+  host: 127.0.0.1
+  port: 1883
+  username: ""
+  password: ""
+  topic_prefix: rally_tracker
+  qos: 1
+  status_interval: 5.0
+```
+
+### 10.1 Topics
+
+Publish (vom Tracker):
+
+- `<prefix>/online` (retained): `{"online": true|false}`
+- `<prefix>/status` (retained): Tracker-State + Tracking-Flag + Target
+- `<prefix>/detection`: Detektions-Events
+- `<prefix>/camera/position`: aktuelle Pan/Tilt-Position
+
+Subscribe (Kommandos an Tracker):
+
+- `<prefix>/cmd/tracking` → Payload `enable` oder `disable`
+- `<prefix>/cmd/move` → JSON `{"pan":...,"tilt":...,"pan_speed":...,"tilt_speed":...}`
+- `<prefix>/cmd/stop` → beliebiger Payload
+- `<prefix>/cmd/zoom/in` → optional JSON `{"speed":0..7}` oder Payload `0..7`
+- `<prefix>/cmd/zoom/out` → optional JSON `{"speed":0..7}` oder Payload `0..7`
+- `<prefix>/cmd/zoom/stop` → beliebiger Payload
+- `<prefix>/cmd/preset/save` → beliebiger Payload
+- `<prefix>/cmd/preset/recall` → beliebiger Payload
+
+`<prefix>` ist standardmäßig `rally_tracker`.
+
+### 10.2 Befehle mit `mosquitto_pub`
+
+Beispiele (lokaler Broker):
+
+```bash
+BROKER=127.0.0.1
+PORT=1883
+PREFIX=rally_tracker
+```
+
+Tracking ein/aus:
+
+```bash
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/tracking" -m "enable"
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/tracking" -m "disable"
+```
+
+Absolute Bewegung:
+
+```bash
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/move" \
+  -m '{"pan":120,"tilt":-40,"pan_speed":12,"tilt_speed":8}'
+```
+
+Stop:
+
+```bash
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/stop" -m "1"
+```
+
+Zoom:
+
+```bash
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/zoom/in" -m '{"speed":5}'
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/zoom/out" -m "4"
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/zoom/stop" -m "1"
+```
+
+Preset/Home:
+
+```bash
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/preset/save" -m "1"
+mosquitto_pub -h "$BROKER" -p "$PORT" -t "$PREFIX/cmd/preset/recall" -m "1"
+```
+
+### 10.3 Status live beobachten
+
+```bash
+mosquitto_sub -h "$BROKER" -p "$PORT" -t "$PREFIX/#" -v
 ```

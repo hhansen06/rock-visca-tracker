@@ -10,6 +10,9 @@ Abonniert (Steuerung):
   <prefix>/cmd/tracking    – Payload "enable" / "disable"
   <prefix>/cmd/move        – JSON { "pan": int, "tilt": int, "pan_speed": int, "tilt_speed": int }
   <prefix>/cmd/stop        – beliebiger Payload → Kamera stopp
+  <prefix>/cmd/zoom/in     – JSON optional { "speed": 0..7 }
+  <prefix>/cmd/zoom/out    – JSON optional { "speed": 0..7 }
+  <prefix>/cmd/zoom/stop   – beliebiger Payload → Zoom stoppen
   <prefix>/cmd/preset/save   – beliebiger Payload → Home-Position speichern
   <prefix>/cmd/preset/recall – beliebiger Payload → Home-Position anfahren
 
@@ -244,6 +247,9 @@ class MQTTClient:
                 f"{self._prefix}/cmd/tracking",
                 f"{self._prefix}/cmd/move",
                 f"{self._prefix}/cmd/stop",
+                f"{self._prefix}/cmd/zoom/in",
+                f"{self._prefix}/cmd/zoom/out",
+                f"{self._prefix}/cmd/zoom/stop",
                 f"{self._prefix}/cmd/preset/save",
                 f"{self._prefix}/cmd/preset/recall",
             ]
@@ -277,6 +283,15 @@ class MQTTClient:
 
             elif suffix == "cmd/stop":
                 self._handle_stop()
+
+            elif suffix == "cmd/zoom/in":
+                self._handle_zoom_in(payload)
+
+            elif suffix == "cmd/zoom/out":
+                self._handle_zoom_out(payload)
+
+            elif suffix == "cmd/zoom/stop":
+                self._handle_zoom_stop()
 
             elif suffix == "cmd/preset/save":
                 self._handle_preset_save()
@@ -326,6 +341,37 @@ class MQTTClient:
     def _handle_stop(self):
         self._camera.stop()
         logger.info("MQTT: stop")
+
+    def _parse_zoom_speed(self, payload: str, default: int = 3) -> int:
+        speed = default
+        if payload:
+            try:
+                data = json.loads(payload)
+                if isinstance(data, dict) and "speed" in data:
+                    speed = int(data.get("speed", default))
+                elif isinstance(data, int):
+                    speed = int(data)
+            except json.JSONDecodeError:
+                # Optional: reine Zahl als Payload erlauben
+                try:
+                    speed = int(payload)
+                except ValueError:
+                    pass
+        return max(0, min(7, speed))
+
+    def _handle_zoom_in(self, payload: str):
+        speed = self._parse_zoom_speed(payload, default=3)
+        self._camera.zoom_in(speed)
+        logger.info(f"MQTT: zoom in speed={speed}")
+
+    def _handle_zoom_out(self, payload: str):
+        speed = self._parse_zoom_speed(payload, default=3)
+        self._camera.zoom_out(speed)
+        logger.info(f"MQTT: zoom out speed={speed}")
+
+    def _handle_zoom_stop(self):
+        self._camera.zoom_stop()
+        logger.info("MQTT: zoom stop")
 
     def _handle_preset_save(self):
         pos = self._camera.inquire_pantilt()

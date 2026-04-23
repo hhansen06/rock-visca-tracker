@@ -7,6 +7,9 @@ Endpunkte:
   POST /tracking/disable      → Tracking deaktivieren (Kamera stoppt)
   POST /move                  → absolute Position  { pan: -880..880, tilt: -300..300, pan_speed: 1..24, tilt_speed: 1..20 }
   POST /stop                  → Kamera stoppen
+  POST /zoom/in               → Zoom in starten    { speed: 0..7 }
+  POST /zoom/out              → Zoom out starten   { speed: 0..7 }
+  POST /zoom/stop             → Zoom stoppen
   POST /preset/save           → aktuelle Position als Preset 0 speichern
   POST /preset/recall         → zu Preset 0 zurückfahren
 """
@@ -113,6 +116,30 @@ class TrackerAPI:
             self.camera.stop()
             logger.info("API: stop")
             return jsonify({"ok": True})
+
+        @app.post("/zoom/in")
+        def zoom_in():
+            data = request.get_json(silent=True) or {}
+            speed = int(data.get("speed", 3))
+            speed = max(0, min(7, speed))
+            self.camera.zoom_in(speed)
+            logger.info(f"API: zoom in speed={speed}")
+            return jsonify({"zoom": "in", "speed": speed})
+
+        @app.post("/zoom/out")
+        def zoom_out():
+            data = request.get_json(silent=True) or {}
+            speed = int(data.get("speed", 3))
+            speed = max(0, min(7, speed))
+            self.camera.zoom_out(speed)
+            logger.info(f"API: zoom out speed={speed}")
+            return jsonify({"zoom": "out", "speed": speed})
+
+        @app.post("/zoom/stop")
+        def zoom_stop():
+            self.camera.zoom_stop()
+            logger.info("API: zoom stop")
+            return jsonify({"zoom": "stop"})
 
         @app.post("/preset/save")
         def preset_save():
